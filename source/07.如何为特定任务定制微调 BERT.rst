@@ -1,0 +1,245 @@
+.. meta::
+   :description: 通过本文，您将学会如何为特定的自然语言处理任务（如分类、问答等）微调 BERT。
+   :twitter:description: 通过本文，您将学会如何为特定的自然语言处理任务（如分类、问答等）微调 BERT。
+
+如何为特定任务定制微调 BERT
+============================================
+.. rst-class:: lead
+    
+    通过本文，您将学会如何为特定的自然语言处理任务（如分类、问答等）微调 BERT。
+
+引言
+-------------------------------------------------------------------------------
+
+BERT 是一个强大的预训练语言模型，可以用于多种下游任务，只需进行极小的修改。通过微调 BERT，您可以利用它的大规模知识，并将其适应于您自己的领域和任务。
+
+但 BERT 是什么，为什么它如此重要？如何为不同任务微调 BERT？微调过程中涉及哪些步骤和工具？这些是我们将在本教程中回答的问题。通过本教程，您将能够：
+
+- 理解 BERT 的基础概念、原理及其应用
+- 使用 Hugging Face Transformers 库在 Python 中加载和使用预训练的 BERT 模型
+- 使用 GLUE 基准数据集对文本分类任务进行 BERT 微调
+- 使用 SQuAD 数据集对问答任务进行 BERT 微调
+- 对情绪分析、命名实体识别等其他任务进行 BERT 微调
+
+在开始之前，您需要具备一些 Python 和数据分析的基础知识。还需要在您的Python 环境中安装以下包：
+
+.. code-block:: bash
+
+    # 安装Hugging Face Transformers库
+    pip install transformers
+
+    # 安装PyTorch框架
+    pip install torch
+
+    # 安装datasets库
+    pip install datasets
+
+
+BERT 是什么以及为什么重要？
+-------------------------------------------------------------------------------
+
+**BERT 代表双向编码器表示来自 Transformers** 它基于 Transformer 架构，该架构使用注意力机制来学习文本中单词间的上下文关系。与仅从左到右或从右到左处理文本的先前模型不同，BERT 能够同时从两个方向处理文本，因此命名为双向。
+
+**BERT 为何重要？** BERT 之所以重要，是因为它在自然语言处理（NLP）领域代表了一个重大进步，这是计算机科学的一个领域，涉及理解和生成自然语言。BERT 能够在广泛的 NLP 任务上实现最先进的结果，如文本分类、问答、命名实体识别、情绪分析等。BERT还能处理复杂和多样化的文本类型，如对话、非正式或特定领域的文本。
+
+**BERT 如何工作？** BERT 通过在大量未标记的文本（如维基百科和BooksCorpus）上进行预训练来工作。在预训练阶段，BERT 通过解决两个自监督任务——掩码语言建模和下一句预测——来学习自然语言的通用模式和结构。在掩码语言建模中，BERT 随机遮盖句子中的一些词，并尝试基于周围的上下文来预测它们。在下一句预测中，BERT 接收两个句子作为输入，并尝试预测它们是否连续。
+
+预训练阶段之后，可以通过在预训练模型顶部添加特定任务的层，并在标记的数据集上训练它，来为特定任务微调 BERT。例如，对于文本分类，BERT 可以接收一个句子或段落作为输入，并输出一个标签来指示其类别。对于问答，BERT 可以接收一个问题和一段文字作为输入，并在该段落中输出答案的范围。对于其他任务，可以相应地修改或适配 BERT。
+
+总之，BERT 是一个强大而多功能的模型，可用于多种 NLP 任务，只需极小的修改。通过微调 BERT，您可以利用其大规模的知识，并将其适应于您自己的领域和任务。
+
+如何为不同任务微调 BERT
+-------------------------------------------------------------------------------
+
+Transformers 库是一个流行且易于使用的 Python 库，为使用各种预训练的自然语言处理模型提供了高级 API。您可以使用 Transformers 库来加载和使用预训练的 BERT 模型，以及为您自己的任务微调它们。
+
+为不同任务微调BERT的一般步骤如下：
+
+1. 从 Transformers 库加载预训练的 BERT 模型和分词器
+2. 加载特定任务的数据集，并使用分词器对其进行预处理
+3. 创建一个 PyTorch 数据加载器，将数据送入模型中
+4. 通过在预训练的BERT模型顶部添加一层来定义特定任务的模型
+5. 定义训练参数和优化器
+6. 在训练数据上训练模型，并在验证数据上评估模型
+7. 保存微调后的模型，并将其用于新数据的推理
+
+在接下来的部分中，我们将演示如何为两个特定任务微调 BERT：文本分类和问答。我们将使用 GLUE 基准数据集进行文本分类和 SQuAD 数据集进行问答。这些是用于评估 NLP 模型在各种任务上性能的广泛使用的数据集。您也可以通过遵循相同的步骤并相应地修改代码，为其他任务微调 BERT。
+
+微调 BERT 进行文本分类
+-------------------------------------------------------------------------------
+
+我们使用 GLUE 基准数据集对文本分类任务进行 BERT 微调。GLUE 基准是九项自然语言理解任务的集合，如情绪分析、自然语言推理、释义检测等。每项任务都包括一对句子和一个标签，指示它们之间的关系。例如，在 SST-2 任务中，标签是正面或负面的，指示句子的情绪。在 MNLI 任务中，标签是蕴含、矛盾或中性的，指示两个句子之间的逻辑关系。
+
+为了对文本分类任务进行 BERT 微调，我们将遵循上一节中概述的步骤。首先，我们将从Transformers 库加载预训练的 BERT 模型和分词器。我们将使用`bert-base-uncased`模型，这是原始 BERT 模型的一个较小版本，拥有 12 层、768 个隐藏单元和 12 个注意力头。我们还将使用`BertTokenizer`类，该类可以将输入文本分词成子词，并添加BERT所需的特殊标记，如`[CLS]`和`[SEP]`。
+
+.. code-block:: python
+    :linenos:
+
+    # 导入Transformers库
+    from transformers import BertModel, BertTokenizer
+
+    # 加载预训练的BERT模型和分词器
+    model = BertModel.from_pretrained('bert-base-uncased')
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
+
+接下来，我们将加载特定任务的数据集，并使用分词器对其进行预处理。我们将使用`datasets`库，它提供了一种方便的方法来加载和处理各种NLP数据集。我们将使用`load_dataset`函数加载 GLUE 基准数据集，并指定任务名称为`sst2`。这将返回一个`DatasetDict`对象，包含数据集的训练、验证和测试分割。每个分割都是一个`Dataset`对象，包含输入文本和标签。
+
+.. code-block:: python
+    :linenos:
+
+    # 导入datasets库
+    from datasets import load_dataset
+
+    # 加载SST-2任务的GLUE基准数据集
+    dataset = load_dataset('glue', 'sst2')
+
+
+为了预处理数据集，我们将使用`Dataset`对象的`map`方法，该方法允许我们对数据集中的每个示例应用一个函数。我们将定义一个函数，该函数接受一个示例作为输入，并返回一个特征字典。特征是 tokenized 输入 ids、注意力掩码和标签。输入 ids 是输入文本中标记的数字表示。注意力掩码是二进制向量，指示哪些标记是填充的，哪些不是。标签是任务中类别的数字表示。
+
+.. code-block:: python
+    :linenos:
+
+    # 定义一个函数来预处理数据集
+    def preprocess(example):
+        # 对输入文本进行分词
+        tokens = tokenizer(example['sentence'], padding='max_length', truncation=True, max_length=128, return_tensors='pt')
+        # 返回特征
+        return {'input_ids': tokens['input_ids'].squeeze(), 'attention_mask': tokens['attention_mask'].squeeze(), 'labels': example['label']}
+
+    # 将函数应用于数据集的每个分割
+    dataset = dataset.map(preprocess)
+
+
+在预处理数据集之后，我们将创建一个 PyTorch 数据加载器，将数据送入模型中。我们将使用`torch.utils.data`模块的`DataLoader`类，该类可以批量和随机化数据。我们还将使用`torch.utils.data.TensorDataset`类，该类可以将一组张量转换为数据集。我们将为数据集的每个分割创建一个数据加载器，使用 32 的批量大小和 42 的随机种子以实现可重现性。
+
+.. code-block:: python
+    :linenos:
+
+    # 导入PyTorch库
+    import torch
+    from torch.utils.data import DataLoader, TensorDataset
+
+    # 定义批量大小和随机种子
+    batch_size = 32
+    seed = 42
+
+    # 为数据集的每个分割创建一个数据加载器
+    dataloaders = {}
+    for split in ['train', 'validation', 'test']:
+        # 将特征转换为张量
+        input_ids = torch.tensor(dataset[split]['input_ids'])
+        attention_mask = torch.tensor(dataset[split]['attention_mask'])
+        labels = torch.tensor(dataset[split]['labels'])
+        # 创建一个TensorDataset对象
+        tensor_dataset = TensorDataset(input_ids, attention_mask, labels)
+        # 创建一个DataLoader对象
+        dataloader = DataLoader(tensor_dataset, batch_size=batch_size, shuffle=(split=='train'), num_workers=4)
+        # 在字典中存储数据加载器
+        dataloaders[split] = dataloader
+
+
+微调 BERT 进行问答
+-------------------------------------------------------------------------------
+
+我们使用SQuAD数据集对问答任务进行BERT微调。SQuAD 数据集是基于维基百科文章的问题和答案集合。每个问题都与一个包含答案的段落配对，答案是段落中的一个文本片段。例如，对于问题“土星最大的卫星名字是什么？”和段落“泰坦是土星最大的卫星，也是太阳系中第二大的自然卫星。它是已知唯一拥有稠密大气的卫星，也是太空中除了地球之外唯一已知存在稳定液态表面水体的天体。”，答案是“泰坦”。
+
+为了对问答任务进行BERT微调，我们将遵循与前一节相同的步骤，但进行一些修改。首先，我们将从 Transformers 库加载预训练的 BERT 模型和分词器。我们将使用与之前相同的`bert-base-uncased`模型和`BertTokenizer`类。
+
+.. code-block:: python
+    :linenos:
+
+    # 导入Transformers库
+    from transformers import BertModel, BertTokenizer
+
+    # 加载预训练的BERT模型和分词器
+    model = BertModel.from_pretrained('bert-base-uncased')
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
+
+
+接下来，我们将使用分词器加载特定任务的数据集并对其进行预处理。我们将再次使用`datasets`库，但这次我们将使用`load_dataset`函数加载SQuAD数据集并指定版本为`v2.0`。这将返回一个`DatasetDict`对象，包含数据集的训练和验证分割。每个分割都是一个`Dataset`对象，包含问题、段落、答案和一些附加信息。
+
+.. code-block:: python
+    :linenos:
+
+    # 导入datasets库
+    from datasets import load_dataset
+
+    # 加载SQuAD数据集版本2.0
+    dataset = load_dataset('squad', 'v2.0')
+
+
+
+为了预处理数据集，我们将再次使用`Dataset`对象的`map`方法，但这次我们将定义一个不同的函数来处理问答任务。我们将使用`tokenizer.encode_plus`方法，该方法可以对一对文本进行编码，并返回输入 ids、注意力掩码、标记类型 ids 和偏移量。标记类型 ids 是二进制向量，指示标记属于第一文本还是第二文本。偏移量是元组，指示每个标记在原始文本中的开始和结束位置。我们将使用这些偏移量来在 tokenized 段落中找到答案范围。我们还将处理答案为空或不在段落中的情况，将开始和结束位置设置为-1。
+
+.. code-block:: python
+    :linenos:
+
+    # 定义一个函数来预处理数据集
+    def preprocess(example):
+        # 编码问题和段落
+        encoding = tokenizer.encode_plus(example['question'], example['context'], padding='max_length', truncation=True, max_length=512, return_tensors='pt', return_offsets_mapping=True)
+        # 获取特征
+        input_ids = encoding['input_ids'].squeeze()
+        attention_mask = encoding['attention_mask'].squeeze()
+        token_type_ids = encoding['token_type_ids'].squeeze()
+        offsets = encoding['offset_mapping'].squeeze()
+        # 获取答案
+        answer = example['answers']
+        # 初始化开始和结束位置
+        start_position = -1
+        end_position = -1
+        # 如果答案不为空且在段落中
+        if answer['answer_start'] and answer['text'] and answer['answer_start'][0] < len(example['context']):
+            # 获取答案的开始和结束字符
+            start_char = answer['answer_start'][0]
+            end_char = start_char + len(answer['text'][0])
+            # 找到答案的开始和结束标记
+            for i, offset in enumerate(offsets):
+                # 如果开始字符在标记中
+                if start_char >= offset[0] and start_char < offset[1]:
+                    # 将开始位置设置为标记索引
+                    start_position = i
+                # 如果结束字符在标记中
+                if end_char > offset[0] and end_char <= offset[1]:
+                    # 将结束位置设置为标记索引
+                    end_position = i
+                    # 中断循环
+                    break
+        # 返回特征和位置
+        return {'input_ids': input_ids, 'attention_mask': attention_mask, 'token_type_ids': token_type_ids, 'start_position': start_position, 'end_position': end_position}
+
+    # 将函数应用于数据集的每个分割
+    dataset = dataset.map(preprocess)
+
+
+微调 BERT 进行其他任务
+-------------------------------------------------------------------------------
+
+我们使用与之前相同的步骤和代码，但根据任务进行一些修改。我们还将使用一些其他数据集和任务的示例，您可以用它们来为您自己的目的微调 BERT。
+
+您可以为以下其他任务微调BERT：
+
+- **情绪分析：** 这是预测文本的情绪或情感的任务，如正面、负面或中性。您可以使用文本分类部分中的相同代码，但使用不同的数据集和标签。例如，您可以使用IMDb数据集，该数据集包含电影评论及其二元情绪标签。您可以使用`load_dataset`函数并指定名称`imdb`来加载数据集。
+- **命名实体识别：** 这是识别和分类文本中的实体（如人物、地点、组织等）的任务。您可以使用问答部分中的相同代码，但需要使用不同的模型和数据集。您需要使用具有标记分类头的模型，如`bert-base-cased`。您还需要使用一个数据集，该数据集为每个标记提供实体标签，如CoNLL-2003数据集。您可以使用`load_dataset`函数并指定名称`conll2003`来加载数据集。
+- **文本摘要：** 这是生成长文本的简短而精炼摘要的任务。您可以使用问答部分中的相同代码，但需要使用不同的模型和数据集。您需要使用具有序列到序列头的模型，如`bert-base-uncased`。您还需要使用一个数据集，该数据集为每个文本提供摘要，如 CNN/Daily Mai l数据集。您可以使用`load_dataset`函数并指定名称`cnn_dailymail`来加载数据集。
+
+这些只是您可以为其微调 BERT 的其他任务的一些示例。您还可以通过遵循相同的步骤并相应地修改代码，为其他任务（如文本生成、机器翻译、释义检测等）微调 BERT。您还可以使用`datasets`库中提供的其他数据集和任务，或创建您自己的自定义数据集和任务。
+
+总之，BERT 是一个多功能且强大的模型，可以用于多种自然语言处理任务，只需极小的修改。通过微调 BERT，您可以利用其大规模的知识，并将其适应于您自己的领域和任务。
+
+总结
+-------------------------------------------------------------------------------
+
+在本教程中，您已经学会了如何为特定的自然语言处理任务（如分类、问答等）微调 BERT。您还学会了如何使用 Hugging Face Transformers 库和 datasets 库来加载和使用预训练的 BERT 模型以及各种 NLP 数据集。您还看到了一些如何为其他任务（如情绪分析、命名实体识别、文本摘要等）微调 BERT 的示例。
+
+通过微调 BERT，您可以利用其大规模的知识，并将其适应于您自己的领域和任务。BERT 是一个多功能且强大的模型，可以用于多种 NLP 任务，只需极小的修改。您还可以探索T ransformers 库和 datasets 库中提供的其他预训练模型和任务，或创建您自己的自定义模型和任务。
+
+参考资源
+-------------------------------------------------------------------------------
+- BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding：https://arxiv.org/abs/1810.04805
+- Transformers library：https://github.com/huggingface/transformers
+- datasets library：https://huggingface.co/docs/datasets/index
+- The Illustrated BERT, ELMo, and co. (How NLP Cracked Transfer Learning：https://jalammar.github.io/illustrated-bert/
+- Fine-Tuning BERT for Text Classification (Sentiment Analysis)：https://www.youtube.com/watch?v=9dfM-_5xkyI
